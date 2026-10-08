@@ -1,4 +1,5 @@
- __pycache__/
-   *.pyc
-   .env
-   .vs/
+__pycache__/
+database/*.db
+*.pyc
+.env
+.vs/
