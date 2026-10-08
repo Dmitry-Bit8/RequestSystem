@@ -108,5 +108,4 @@ bash
 pytest tests/ -v
 
 Красноперов Дмитрий Васильевич
-
-[GitHub профиль]
+[GitHub профиль](https://github.com/Dmitry-Bit8/RequestSystem)

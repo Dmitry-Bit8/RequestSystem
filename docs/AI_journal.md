@@ -147,3 +147,364 @@
 
 Сущности: Пользователь (Users), Заявка (Requests), Статус (Statuses), Категория (Categories), Комментарий (Comments).
 Use Case: Создать заявку, Назначить исполнителя, Выполнить заявку, Добавить комментарий, Управлять SLA.
+Лабораторная работа №3: Архитектура
+
+Ответ ИИ:
+
+Слоистая архитектура для системы учёта заявок с CLI-интерфейсом и SQLite
+
+1. Слой представления (Presentation Layer)
+
+Ответственность:
+
+Обработка пользовательского ввода через командную строку
+
+Отображение результатов пользователю
+
+Валидация ввода (формат, обязательные поля)
+
+Управление пользовательским интерфейсом (меню, команды)
+
+Компоненты:
+
+CLI-команды (create, list, update, delete, status)
+
+Парсер аргументов командной строки
+
+Форматтеры вывода (текстовый, табличный, JSON)
+
+Пример:
+
+python
+
+Копировать
+
+## CLI interface
+
+def cmd_create_request(args):
+
+    title = input("Введите заголовок: ")
+
+    description = input("Введите описание: ")
+
+    request_service.create_request(title, description)
+
+2. Слой бизнес-логики (Business Logic Layer)
+
+Ответственность:
+
+Реализация бизнес-правил системы
+
+Управление заявками (создание, изменение, удаление)
+
+Обработка статусов заявок (новая, в работе, решена, отклонена)
+
+Валидация бизнес-правил (например, нельзя закрыть заявку без решения)
+
+Компоненты:
+
+Сервисы (RequestService, UserService)
+
+Менеджеры (StatusManager, PriorityManager)
+
+Утилиты (Validator, DateHandler)
+Пример:
+python
+Копировать
+class RequestService:
+    def create_request(self, title, description):
+        if not title or not description:
+            raise ValidationError("Заголовок и описание обязательны")
+        return request_repository.save(title, description)
+
+    def change_status(self, request_id, new_status):
+
+        request = self.get_request(request_id)
+
+        if request.status == "closed" and new_status != "reopened":
+
+            raise BusinessRuleError("Закрытую заявку нельзя изменить")
+
+3. Слой доступа к данным (Data Access Layer)
+Ответственность:
+Взаимодействие с базой данных SQLite
+
+CUD-операции (Create, Read, Update, Delete)
+
+Управление транзакциями
+
+Маппинг объектов на таблицы
+
+Компоненты:
+
+епозитории (RequestRepository, UserRepository)
+
+Модели данных (Request, User, Comment)
+Мапперы (RowMapper)
+Пример:
+python
+Копировать
+
+class RequestRepository:
+
+    def __init__(self, db_connection):
+
+        self.connection = db_connection
+
+    def save(self, request_data):
+
+        cursor = self.connection.cursor()
+
+        cursor.execute(
+
+            "INSERT INTO requests (title, description, status, created_at) VALUES (?, ?, ?, ?)",
+
+            (request_data['title'], request_data['description'], 
+
+             request_data['status'], request_data['created_at'])
+
+        )
+
+        self.connection.commit()
+
+        return cursor.lastrowid
+
+    def find_by_id(self, request_id):
+
+        cursor = self.connection.cursor()
+
+        cursor.execute("SELECT * FROM requests WHERE id = ?", (request_id,))
+
+        row = cursor.fetchone()
+
+        return self._map_row_to_request(row)
+
+4. Слой базы данных (Database Layer)
+
+Ответственность:
+
+Хранение данных в SQLite
+
+Поддержка целостности данных (foreign keys, constraints)
+
+Обеспечение транзакционности
+
+Управление схемой БД (миграции)
+
+Компоненты:
+
+Файл базы данных (requests.db)
+
+Таблицы (requests, users, statuses, comments)
+
+Индексы и ограничения
+
+Схема БД:
+
+sql
+
+Копировать
+
+CREATE TABLE requests (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    title TEXT NOT NULL,
+
+    description TEXT NOT NULL,
+
+    status TEXT NOT NULL DEFAULT 'new',
+
+    priority TEXT NOT NULL DEFAULT 'medium',
+
+    created_at DATETIME NOT NULL,
+
+    updated_at DATETIME,
+
+    user_id INTEGER,
+
+    FOREIGN KEY (user_id) REFERENCES users(id)
+
+);
+
+CREATE TABLE users (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    username TEXT NOT NULL UNIQUE,
+
+    email TEXT NOT NULL UNIQUE,
+
+    role TEXT NOT NULL DEFAULT 'user'
+
+);
+
+1. Слой инфраструктуры (Infrastructure Layer)
+
+Ответственность:
+
+Конфигурация приложения
+
+Управление подключением к БД
+
+Логирование
+
+Обработка ошибок
+
+Компоненты:
+
+Конфигурационные файлы (config.yaml, .env)
+
+Логгеры
+
+Обработчики исключений
+
+Менеджер подключений
+
+Пример:
+
+python
+
+Копировать
+
+## Infrastructure layer
+
+class DatabaseManager:
+
+    def __init__(self, db_path):
+
+        self.connection = sqlite3.connect(db_path)
+
+    def get_connection(self):
+
+        return self.connection
+
+    def close(self):
+
+        self.connection.close()
+
+## Configuration
+
+DB_PATH = "data/requests.db"
+
+LOG_LEVEL = "INFO"
+
+1. Слой домена (Domain Layer) (опционально)
+
+Ответственность:
+
+Определение доменных сущностей
+
+Бизнес-правила высокого уровня
+
+Инварианты системы
+
+Компоненты:
+
+Доменные модели (Request, User, Status)
+
+Value Objects (Priority, DateRange)
+
+Domain Services
+
+Пример:
+
+python
+
+Копировать
+
+class Request:
+
+    def __init__(self, id, title, description, status, created_at):
+
+        self.id = id
+
+        self.title = title
+
+        self.description = description
+
+        self.status = status
+
+        self.created_at = created_at
+
+    def is_editable(self):
+
+        return self.status != "closed"
+
+    def can_be_deleted(self):
+
+        return self.status in ["new", "rejected"]
+
+Взаимодействие слоёв:
+
+CLI (Presentation)
+
+    ↓
+
+RequestService (Business Logic)
+
+    ↓
+
+RequestRepository (Data Access)
+
+    ↓
+
+SQLite Database (Database Layer)
+
+Поток данных:
+
+Пользователь вводит команду в CLI
+
+Presentation Layer обрабатывает ввод
+
+Business Logic Layer выполняет бизнес-правила
+
+Data Access Layer выполняет SQL-запросы
+
+Database Layer сохраняет данные
+
+Ответ возвращается обратно через все слои
+
+Преимущества такой архитектуры:
+
+✅ Разделение ответственности - каждый слой отвечает за свою задачу
+
+✅ Тестируемость - каждый слой можно тестировать отдельно
+
+✅ Поддерживаемость - изменение одного слоя не влияет на другие
+
+✅ Переиспользуемость - бизнес-логика независима от UI
+
+✅ Масштабируемость - легко добавлять новые функции
+
+Структура проекта:
+
+request_system/
+
+├── presentation/
+
+│   └── cli.py
+
+├── business/
+
+│   └── request_service.py
+
+├── data/
+
+│   └── request_repository.py
+
+├── database/
+
+│   └── schema.sql
+
+├── infrastructure/
+
+│   └── config.py
+
+├── domain/
+
+│   └── models.py
+
+└── main.py
+
+Это основная слоистая архитектура для системы учёта заявок с CLI-интерфейсом и SQLite!
