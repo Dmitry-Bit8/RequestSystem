@@ -1,0 +1,23 @@
+import datetime
+import json
+from functools import wraps
+from flask import request, g  # если используете Flask
+from fastapi import Request   # если используете FastAPI
+
+LOG_FILE = "al_log.md"
+
+def add_to_log(method, endpoint, status_code, user_ip, duration_ms, request_data=None, response_data=None):
+    """Автоматически добавляет запись о HTTP-запросе в al_log.md"""
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Формируем красивое Markdown-сообщение
+    log_entry = f"""
+### 📨 Запрос: {timestamp}
+- **Метод:** `{method}`
+- **Endpoint:** `{endpoint}`
+- **IP:** `{user_ip}`
+- **Статус:** `{status_code}`
+- **Время выполнения:** `{duration_ms}ms`
+
+**Входные данные:**

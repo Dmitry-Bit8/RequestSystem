@@ -17,10 +17,10 @@ def register(data: schemas.UserCreate, db: Session = Depends(get_db)):
 
     user = models.User(
         username=data.username,
-        name=data.name,
+        name=data.name,                           
         email=data.email,
-        password=hash_password(data.password),
-        role="user"
+        hashed_password=hash_password(data.password),  
+        role=data.role,                               
     )
     db.add(user)
     db.commit()
@@ -29,10 +29,17 @@ def register(data: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=schemas.Token)
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.username == form.username).first()
-    if not user or not verify_password(form.password, user.password):
-        raise HTTPException(status_code=401, detail="Неверный логин или пароль")
-
     
+    user = db.query(models.User).filter(models.User.username == form.username).first()
+
+    if not user or not verify_password(form.password, str(user.hashed_password)):
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный логин или пароль"
+        )
+
     token = create_access_token(data={"sub": user.username, "role": user.role})
     return {"access_token": token, "token_type": "bearer"}
+
+

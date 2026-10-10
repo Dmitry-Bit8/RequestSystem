@@ -1,69 +1,88 @@
 from datetime import datetime, timedelta
-from typing import Optional, Any
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+from typing import Optional, List
+from jose import jwt, JWTError
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from src.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
-from src.database import get_db
-from src import models
+SECRET_KEY = "your-secret-key-change-me-in-production"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    """Хеширование пароля через bcrypt."""
+    pwd_bytes = password.encode("utf-8")[:72]
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(pwd_bytes, salt)
+    return hashed.decode("utf-8")
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    """Проверка пароля."""
+    try:
+        pwd_bytes = plain_password.encode("utf-8")[:72]
+        hashed_bytes = hashed_password.encode("utf-8")
+        return bcrypt.checkpw(pwd_bytes, hashed_bytes)
+    except (ValueError, TypeError):
+        return False
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """Создание JWT-токена."""
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def decode_token(token: str) -> Optional[dict]:
+
+def decode_access_token(token: str) -> Optional[dict]:
+    """Декодирование JWT-токена."""
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
-) -> models.User:
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    """Получение текущего пользователя по JWT-токену."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Не удалось проверить учётные данные",
+        detail="Не удалось проверить токен",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    payload = decode_token(token)
+
+    payload = decode_access_token(token)
     if payload is None:
         raise credentials_exception
 
-    username = payload.get("sub")
-   
-    if not isinstance(username, str):
+    username: Optional[str] = payload.get("sub")
+    if username is None:
         raise credentials_exception
 
-    user = db.query(models.User).filter(models.User.username == username).first()
-    if user is None:
-        raise credentials_exception
-    return user
+    from src.database import SessionLocal
+    from src import models
+
+    db: Session = SessionLocal()
+    try:
+        user = db.query(models.User).filter(models.User.username == username).first()
+        if user is None:
+            raise credentials_exception
+        return user
+    finally:
+        db.close()
 
 
-def require_role(*allowed_roles: str):
-    def checker(current_user: models.User = Depends(get_current_user)) -> models.User:
-        if current_user.role not in allowed_roles:
+def require_role(*roles: str):
+    
+    def role_checker(current_user=Depends(get_current_user)):
+        if current_user.role not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Доступ запрещён. Требуется роль: {', '.join(allowed_roles)}"
+                detail=f"Недостаточно прав. Требуется роль: {', '.join(roles)}",
             )
         return current_user
-    return checker
+    return role_checker
