@@ -109,3 +109,22 @@ pytest tests/ -v
 
 Красноперов Дмитрий Васильевич
 [GitHub профиль](https://github.com/Dmitry-Bit8/RequestSystem)
+
+## RequestSystem — Система учёта заявок
+
+## Описание
+
+Веб-приложение для подачи, обработки и отслеживания заявок.
+
+## Технологии
+
+- Python 3.12+
+- FastAPI
+- SQLAlchemy
+- SQLite
+- JWT-авторизация
+- Docker
+
+## Установка и запуск
+
+### Локальный запуск
