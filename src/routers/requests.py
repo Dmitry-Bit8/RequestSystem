@@ -5,15 +5,15 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
+from typing import cast
 
 from src import models, schemas
 from src.database import get_db
 from src.models import Request, Status, Category, User
 from src.schemas import RequestCreate, RequestUpdate, RequestOut
 from src.security import get_current_user
-from typing import cast
-router = APIRouter(prefix="/api/requests", tags=["Заявки"])
 
+router = APIRouter(prefix="/api/requests", tags=["Заявки"])
 
 
 class StatusChange(BaseModel):
@@ -81,39 +81,40 @@ def list_requests(
         .all()
     )
 
+
 @router.get("/{request_id}", response_model=RequestOut)
 def get_request(request_id: int, db: Session = Depends(get_db)):
     """Получить заявку по ID."""
     return _get_or_404(db, request_id)
 
+
 @router.post("", response_model=RequestOut, status_code=status.HTTP_201_CREATED)
 def create_request(
-    data, db: Session = Depends(get_db),
+    payload: RequestCreate,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Создать заявку. Автор — текущий пользователь."""
-    
-    category = db.get(Category, data.category_id)
+
+    category = db.get(Category, payload.category_id)
     if not category:
         raise HTTPException(status_code=400, detail="Категория не найдена")
 
-    
     new_status = db.query(Status).filter(Status.code == "new").first()
     if not new_status:
         new_status = Status(code="new", name="Новая")
         db.add(new_status)
         db.flush()
 
-  
     sla_hours = getattr(category, "sla_hours", None) or 24
 
     request = Request(
         number=generate_number(),
-        title=data.title,
-        description=data.description,
-        category_id=data.category_id,
+        title=payload.title,
+        description=payload.description,
+        category_id=payload.category_id,
         status_id=new_status.id,
-        priority=getattr(data, "priority", None) or "medium",
+        priority=getattr(payload, "priority", None) or "medium",
         requester_id=current_user.id,
         due_date=datetime.utcnow() + timedelta(hours=sla_hours),
     )
@@ -124,10 +125,10 @@ def create_request(
     return request
 
 
-
 @router.put("/{request_id}", response_model=RequestOut)
 def update_request(
-    request_id: int, data,
+    request_id: int,
+    payload: RequestUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -140,7 +141,7 @@ def update_request(
     if not is_priv and requester_id != current_user.id:
         raise HTTPException(status_code=403, detail="Можно править только свои заявки")
 
-    data_dict = data.model_dump(exclude_unset=True)
+    data_dict = payload.model_dump(exclude_unset=True)
 
     forbidden = {"status_id", "assignee_id"} & set(data_dict.keys())
     if not is_priv and forbidden:
@@ -166,7 +167,8 @@ def update_request(
 
 @router.patch("/{request_id}", response_model=RequestOut)
 def patch_request(
-    request_id: int, data,
+    request_id: int,
+    payload: RequestUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -179,7 +181,7 @@ def patch_request(
     if not is_priv and requester_id != current_user.id:
         raise HTTPException(status_code=403, detail="Можно править только свои заявки")
 
-    data_dict = data.model_dump(exclude_unset=True)
+    data_dict = payload.model_dump(exclude_unset=True)
 
     forbidden = {"status_id", "assignee_id"} & set(data_dict.keys())
     if not is_priv and forbidden:
@@ -203,8 +205,6 @@ def patch_request(
     return request
 
 
-
-
 @router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_request(
     request_id: int,
@@ -214,10 +214,7 @@ def delete_request(
     """Удалить заявку. Только админ."""
     request = _get_or_404(db, request_id)
 
-    def is_admin(current_user):
-        ...
-
-    if not is_admin(current_user):
+    if cast(str, current_user.role) != "admin":
         raise HTTPException(
             status_code=403,
             detail="Удалять заявку может только админ",
@@ -226,7 +223,6 @@ def delete_request(
     db.delete(request)
     db.commit()
     return None
-
 
 
 
@@ -240,10 +236,7 @@ def change_status(
     """Сменить статус заявки."""
     request = _get_or_404(db, request_id)
 
-    def is_privileged(current_user):
-        ...
-
-    is_priv = is_privileged(current_user)
+    is_priv = _is_privileged(current_user)
     requester_id = cast(int, request.requester_id)
 
     if not is_priv and requester_id != current_user.id:

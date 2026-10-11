@@ -91,3 +91,8 @@ class CommentOut(BaseModel):
     user: UserOut
     text: str
     created_at: datetime
+
+class CategoryCreate(BaseModel):
+    name: str
+    code: str | None = None
+    sla_hours: int = 24

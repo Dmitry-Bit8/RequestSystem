@@ -133,7 +133,7 @@ def seed():
     for title, desc, category, priority in templates:
         number = generate_number()
 
-        # Статус
+       
         status_code = random.choices(
             list(status_weights.keys()),
             weights=list(status_weights.values()),
@@ -148,16 +148,16 @@ def seed():
 
 
 
-        # Автор и исполнитель
+        
         requester = random.choice(requesters)
         executor = random.choice(executors) if random.random() < 0.6 else None
 
-        # Даты
+        
         days_ago = random.randint(0, 30)
         created_at = datetime.utcnow() - timedelta(days=days_ago)
         due_date = created_at + timedelta(hours=random.randint(1, 72))
 
-                # Создание заявки
+               
         assert status is not None
         data = {
             "number": f"REQ-{random.randint(100000, 999999)}",
@@ -171,7 +171,7 @@ def seed():
         }
 
 
-        # Добавляем в БД
+        
         new_request = Request(**data)
         db.add(new_request)
 
