@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime
 from typing import Optional, List
+
 
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=50)
@@ -9,7 +10,10 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=6)
     role: str = "user"
 
+
 class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     username: str
     name: str
@@ -17,71 +21,73 @@ class UserOut(BaseModel):
     role: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
 
 class LoginData(BaseModel):
     username: str
     password: str
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
 
 class RequestCreate(BaseModel):
     title: str = Field(min_length=5, max_length=200)
     description: str = Field(min_length=10)
     category_id: int
 
+
 class RequestUpdate(BaseModel):
-    title: Optional[str] = Field(min_length=5, max_length=200)
-    description: Optional[str]
-    category_id: Optional[int]
-    status_id: Optional[int]
-    assignee_id: Optional[int]
-    priority: Optional[str]
+    title: Optional[str] = Field(default=None, min_length=5, max_length=200)
+    description: Optional[str] = None
+    category_id: Optional[int] = None
+    status_id: Optional[int] = None
+    assignee_id: Optional[int] = None
+    priority: Optional[str] = None
+
+
+class StatusOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    code: str
+    name: str
+
+
+class CategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    sla_hours: Optional[int] = None
+
 
 class RequestOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     number: str
     title: str
-    description: Optional[str]
-    category: Optional[object]
-    status: Optional[object]
-    requester: Optional[UserOut]
-    assignee: Optional[UserOut]
+    description: Optional[str] = None
+    category: Optional[CategoryOut] = None      # ← вместо object
+    status: Optional[StatusOut] = None          # ← вместо object
+    requester: Optional[UserOut] = None
+    assignee: Optional[UserOut] = None
     priority: str
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
 
 class CommentCreate(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
 
+
 class CommentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     request_id: int
     user: UserOut
     text: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class StatusOut(BaseModel):
-    id: int
-    code: str
-    name: str
-
-    class Config:
-        from_attributes = True
-
-class CategoryOut(BaseModel):
-    id: int
-    name: str
-    sla_hours: Optional[int]
-
-    class Config:
-        from_attributes = True
